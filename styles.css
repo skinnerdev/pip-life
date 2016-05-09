@@ -1,0 +1,43 @@
+body {
+	background-color: #222;
+}
+#game {
+/*  height: 300px;
+  width: 500px;*/
+  position: static;
+}
+
+#stats {
+	background-color: grey;
+  width: 15%;
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  padding: 10px;
+}
+
+#stats>p {
+  margin: 0;
+}
+
+#output {
+	width: 99%;
+  height: 200px;
+  background-color: grey;
+  margin: 10px 0px;
+  list-style-type: none;
+  padding: 5px;
+}
+
+table {
+  border-spacing: 0px;
+  border: 1px solid #333;
+}
+
+td {
+  /*   padding: 1px;
+  width: 1px;
+  height: 1px; */
+  padding: 3px;
+  /*border: 1px solid #333;*/
+}
