@@ -460,7 +460,7 @@ function checkPoint(x, y, me) {
     this.findPartner = function(tick) {
       var self = this;
       // If I'm not pursuing, or the one I'm pursuing all of a sudden is taken
-      if (tick % getRandomNum(50, 150) === 0 || self.pursuing === null || self.pursuing.partner !== null) {
+      if (self.pursuing === null || self.pursuing.partner !== null) {
         // Spiral out from me to find a partner
         if (pips.length > 2000) {
           self.pursuing = spiralSearchForMate(self);
