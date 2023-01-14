@@ -3,7 +3,7 @@
     <link rel="stylesheet" type="text/css" href="styles.css">
   </head>
   <body>
-    <div id="game"></div>
+    <!-- <div id="game"></div> -->
     <div id="stats">
 
       <p>Pip Count <span id="pipCount">0</span></p>
@@ -13,6 +13,9 @@
       <p>Years <span id="years">0</span></p>
       <p>Ticks <span id="ticks">0</span></p>
 
+    </div>
+    <div id="container">
+      <canvas id="piplife" height="1200" width="1200"></canvas>
     </div>
     <button id="toggleBtn">Run</button>
     <div>
@@ -27,8 +30,8 @@ CONFIG
 */
 
 'use strict';
-var columns = 100;
-var rows = 85;
+var columns = 1200;
+var rows = 1200;
 
 /*
 TODO:
@@ -41,6 +44,11 @@ TODO:
 * Controls: Start, Pause, Reset
 */
 
+var mainCanvas = document.querySelector("#piplife");
+var mainContext = mainCanvas.getContext("2d");
+var canvasWidth = mainCanvas.width;
+var canvasHeight = mainCanvas.height;
+
 
 var running = false;
 var pips = [];
@@ -50,8 +58,10 @@ var births = 2;
 var deaths = 0;
 var years = 0;
 var objectId = 0;
-var tickPerYear = 5;
-var dataLength = 2500;
+var tickPerYear = 30;
+var matchMakingDistance = 15;
+var dataLength = 2500; // Pip population graph length
+var killOnTick = 30000;
 var dps1 = [];
 var dps2 = [];
 var chart = new CanvasJS.Chart("chartContainer",{
@@ -101,12 +111,18 @@ var counter = 0;
 function tick() {
   if (running) {
     counter++;
-    if (counter >= 30000 || pips.length === 0) {
+    if (counter >= killOnTick || pips.length === 0) {
       running = false;
     }
-    pips.forEach(function(pip) {
-      pip.run(counter);
-    });
+    // pips.forEach(function(pip) {
+    //   pip.run(counter);
+    // });
+    for (let p=0;p<pips.length; p++) {
+      pips[p].run(counter);
+    }
+    mainContext.clearRect(0,0, canvasWidth, canvasHeight);
+    mainContext.fillStyle = "rgb(0,0,0)";
+    mainContext.fillRect(0,0, canvasWidth, canvasHeight);
     drawItems();
     if (counter % tickPerYear === 0) {
       years += 1;
@@ -128,24 +144,53 @@ function tick() {
   }
 }
 
+function drawCanvasPip(x,y,color) {
+  mainContext.beginPath();
+  var radius = 3;
+  mainContext.arc(x,y, radius, 0, Math.PI * 2, false);
+  mainContext.closePath();
+  mainContext.fillStyle = 'rgb(' + color + ')';
+  mainContext.fill();
+}
+
 function drawItems() {
-  grid.forEach(function(val, x) {
-    val.forEach(function(obj, y) {
-      obj.element.style.backgroundColor = null;
-      if (obj.structure === null) {
-        if (obj.pips.length) {
-          // obj.element.style.backgroundColor = 'rgba(' + obj.pips[0].color + ',' + ((100 - obj.pips[0].age) / 100) + ')';
-          if (obj.pips[0].gender) {
-            obj.element.style.backgroundColor = 'rgb(255,0,128)';
-          } else {
-            obj.element.style.backgroundColor = 'rgb(102,204,255)';
-          }
+
+  for (let g=0;g<grid.length;g++) {//x
+    for (let v=0;v<grid[g].length;v++) {//y
+      // grid[g][v].element.style.backgroundColor = null;
+      if (grid[g][v].structure === null) {
+        if (grid[g][v].pips.length) {
+          // if (grid[g][v].pips[0].gender) {
+            // grid[g][v].element.style.backgroundColor = 'rgb(255,0,128)';
+            // grid[g][v].element.style.backgroundColor = 'rgb(' + grid[g][v].pips[0].color + ')';
+          // } else {
+            // grid[g][v].element.style.backgroundColor = 'rgb(102,204,255)';
+          // }
+          drawCanvasPip(g,v,grid[g][v].pips[0].color);
         }
       } else {
-        obj.element.style.backgroundColor = obj.structure.color;
+        //grid[g][v].element.style.backgroundColor = grid[g][v].structure.color;
       }
-    });
-  });
+    }
+  }
+
+  // grid.forEach(function(val, x) {
+  //   val.forEach(function(obj, y) {
+  //     obj.element.style.backgroundColor = null;
+  //     if (obj.structure === null) {
+  //       if (obj.pips.length) {
+  //         // obj.element.style.backgroundColor = 'rgba(' + obj.pips[0].color + ',' + ((100 - obj.pips[0].age) / 100) + ')';
+  //         if (obj.pips[0].gender) {
+  //           obj.element.style.backgroundColor = 'rgb(255,0,128)';
+  //         } else {
+  //           obj.element.style.backgroundColor = 'rgb(102,204,255)';
+  //         }
+  //       }
+  //     } else {
+  //       obj.element.style.backgroundColor = obj.structure.color;
+  //     }
+  //   });
+  // });
 }
 
 function spiralSearchForMate(me) {
@@ -159,7 +204,7 @@ function spiralSearchForMate(me) {
       }
     }
   }
-  var maxDistance = 30;
+  var maxDistance = matchMakingDistance;
   for (var d = 0; d < maxDistance; d++) {
     for (var x = xs - d; x < xs + d + 1; x++) {
       // Point to check: (x, ys - d) and (x, ys + d)
@@ -236,12 +281,12 @@ function checkPoint(x, y, me) {
   });
 
   function drawGrid() {
-    var container = document.getElementById('game');
-    var gridHtml = '<table>';
+    // var container = document.getElementById('game');
+    // var gridHtml = '<table>';
     var r = 0;
     var c = 0;
     for (r; r <= rows; r+=1) {
-      gridHtml += '<tr>';
+      // gridHtml += '<tr>';
       for (c = 0; c <= columns; c+=1) {
         if (grid[c] === undefined) {
           grid[c] = [];
@@ -251,21 +296,21 @@ function checkPoint(x, y, me) {
           structure: null,
           pips: []
         };
-        gridHtml += '<td id="' + c + '.' + r + '"></td>';
+        // gridHtml += '<td id="' + c + '.' + r + '"></td>';
       }
-      gridHtml += '</tr>';
+      // gridHtml += '</tr>';
     }
-    gridHtml += '</table>';
-    container.innerHTML = gridHtml;
+    // gridHtml += '</table>';
+    // container.innerHTML = gridHtml;
 
-    grid.forEach(function(val, x){
-      val.forEach(function(obj, y) {
-        obj.element = document.getElementById(x + '.' + y);
-        obj.element.addEventListener("click", function() {
-          cellDetails(x, y);
-        });
-      });
-    });
+    // grid.forEach(function(val, x){
+    //   val.forEach(function(obj, y) {
+    //     obj.element = document.getElementById(x + '.' + y);
+    //     obj.element.addEventListener("click", function() {
+    //       cellDetails(x, y);
+    //     });
+    //   });
+    // });
   }
 
   function cellDetails(x, y) {
