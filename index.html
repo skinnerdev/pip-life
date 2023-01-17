@@ -8,6 +8,8 @@
 
       <p>Pip Count <span id="pipCount">0</span></p>
       <p>Births <span id="pipBirths">0</span></p>
+      <p>Boys <span id="pipBoys">0</span></p>
+      <p>Girls <span id="pipGirls">0</span></p>
       <p>Deaths <span id="pipDeaths">0</span></p>
       <p>Structures <span id="structureCount">0</span></p>
       <p>Years <span id="years">0</span></p>
@@ -15,7 +17,7 @@
 
     </div>
     <div id="container">
-      <canvas id="piplife" height="1200" width="1200"></canvas>
+      <canvas id="piplife" height="1000" width="1000"></canvas>
     </div>
     <button id="toggleBtn">Run</button>
     <div>
@@ -30,8 +32,6 @@ CONFIG
 */
 
 'use strict';
-var columns = 1200;
-var rows = 1200;
 
 /*
 TODO:
@@ -42,26 +42,55 @@ TODO:
 * Pips can have thought bubbles?
 * Show output on main screen (events of pips, etc);
 * Controls: Start, Pause, Reset
+*
+* What about if a pip is just married, on their way home, and the spouse dies?
+* What if a pip's spouse dies before the children are all born?
 */
+
+var killOnTick = 300000;
+var tickPerYear = 52;//Like weeks! :D
+var pipMinAgeDeath = 89;
+var pipMaxAgeDeath = 98;
+var pipLowPop = 5000;//1500
+var pipMidPop = 10000;//3250
+var pipHighPop = 20000;//5000
+var matchMakingDistance = 15;
 
 var mainCanvas = document.querySelector("#piplife");
 var mainContext = mainCanvas.getContext("2d");
 var canvasWidth = mainCanvas.width;
 var canvasHeight = mainCanvas.height;
+var statCount = document.getElementById('pipCount');
+var statBirths = document.getElementById('pipBirths');
+var statBoys = document.getElementById('pipBoys');
+var statGirls = document.getElementById('pipGirls');
+var statDeaths = document.getElementById('pipDeaths');
+var statStructs = document.getElementById('structureCount');
+var statTicks = document.getElementById('ticks');
+var statYears = document.getElementById('years');
 
-
+var counter = 0;
 var running = false;
+// var columns = 1200;
+// var rows = 1200;
+var columns = canvasWidth;
+var rows = canvasHeight;
+
 var pips = [];
 var units = [];
 var grid = [];
+
 var births = 2;
 var deaths = 0;
 var years = 0;
+var pipBoys = 1;
+var pipGirls = 1;
+
 var objectId = 0;
-var tickPerYear = 30;
-var matchMakingDistance = 15;
+var pipId = 0;
+var unitId = 0;
+
 var dataLength = 2500; // Pip population graph length
-var killOnTick = 30000;
 var dps1 = [];
 var dps2 = [];
 var chart = new CanvasJS.Chart("chartContainer",{
@@ -84,6 +113,24 @@ var chart = new CanvasJS.Chart("chartContainer",{
   ]
 });
 
+(function() {
+  drawGrid();
+  setStartingPips();
+  drawItems();
+
+  var btn = document.getElementById("toggleBtn");
+  btn.addEventListener("click", function() {
+    var button = document.getElementById("toggleBtn");
+    if (running) {
+      pause();
+      button.innerHTML = "Run";
+    } else {
+      run();
+      button.innerHTML = "Pause";
+    }
+  });
+})();
+
 function log(str) {
   var logSpot = document.getElementById("output");
   var span = document.createElement('li');
@@ -101,54 +148,63 @@ function pause() {
   running = false;
   log( "Game Paused");
 }
-var statCount = document.getElementById('pipCount');
-var statBirths = document.getElementById('pipBirths');
-var statDeaths = document.getElementById('pipDeaths');
-var statStructs = document.getElementById('structureCount');
-var statTicks = document.getElementById('ticks');
-var statYears = document.getElementById('years');
-var counter = 0;
+
 function tick() {
-  if (running) {
-    counter++;
-    if (counter >= killOnTick || pips.length === 0) {
-      running = false;
-    }
-    // pips.forEach(function(pip) {
-    //   pip.run(counter);
-    // });
-    for (let p=0;p<pips.length; p++) {
-      pips[p].run(counter);
-    }
-    mainContext.clearRect(0,0, canvasWidth, canvasHeight);
-    mainContext.fillStyle = "rgb(0,0,0)";
-    mainContext.fillRect(0,0, canvasWidth, canvasHeight);
-    drawItems();
-    if (counter % tickPerYear === 0) {
-      years += 1;
-    }
-    statCount.innerHTML = pips.length;
-    statBirths.innerHTML = births;
-    statDeaths.innerHTML = deaths;
-    statStructs.innerHTML = units.length + '/' + (rows * columns);
-    statTicks.innerHTML = counter + '/1000';
-    statYears.innerHTML = years;
-    dps1.push({x: years, y: pips.length});
-    dps2.push({x: years, y: units.length});
-    if (dps1.length > dataLength) {
-      dps1.shift();
-      dps2.shift();        
-    }
-    chart.render();
-    window.requestAnimationFrame(tick);
+  if ( ! running) return;
+
+  counter++;
+  if (counter >= killOnTick || pips.length === 0) {
+    running = false;
   }
+
+  for (let p=0; p<pips.length; p++) {
+    pips[p].update(counter);
+  }
+  mainContext.clearRect(0,0, canvasWidth, canvasHeight);
+  mainContext.fillStyle = "rgb(0,0,0)";
+  mainContext.fillRect(0,0, canvasWidth, canvasHeight);
+  drawItems();
+  if (counter % tickPerYear === 0) {
+    years += 1;
+  }
+  statCount.innerHTML = pips.length;
+  statBirths.innerHTML = births;
+  statBoys.innerHTML = pipBoys;
+  statGirls.innerHTML = pipGirls;
+  statDeaths.innerHTML = deaths;
+  statStructs.innerHTML = units.length + '/' + (rows * columns);
+  statTicks.innerHTML = counter + '/1000';
+  statYears.innerHTML = years;
+  dps1.push({x: years, y: pips.length});
+  dps2.push({x: years, y: units.length});
+  if (dps1.length > dataLength) {
+    dps1.shift();
+    dps2.shift();        
+  }
+  chart.render();
+  window.requestAnimationFrame(tick);
 }
 
-function drawCanvasPip(x,y,color) {
+function drawCanvasPip(x,y,color, age) {
   mainContext.beginPath();
-  var radius = 3;
+  var radius = 2;// How big the dot is
   mainContext.arc(x,y, radius, 0, Math.PI * 2, false);
   mainContext.closePath();
+  mainContext.fillStyle = 'rgba(' + color + ',' + (100-age)/100 + ')';
+  mainContext.fill();
+}
+
+function drawHouse(x,y,color) {
+  var houseSize = 5;
+  mainContext.beginPath();
+  // ctx.moveTo(75, 50);
+  mainContext.moveTo(x,y-houseSize);
+
+  // ctx.lineTo(100, 75);
+  mainContext.lineTo(x+houseSize,y+houseSize);
+  
+  // ctx.lineTo(100, 25);
+  mainContext.lineTo(x-houseSize,y+houseSize);
   mainContext.fillStyle = 'rgb(' + color + ')';
   mainContext.fill();
 }
@@ -166,9 +222,10 @@ function drawItems() {
           // } else {
             // grid[g][v].element.style.backgroundColor = 'rgb(102,204,255)';
           // }
-          drawCanvasPip(g,v,grid[g][v].pips[0].color);
+          drawCanvasPip(g,v,grid[g][v].pips[0].color, grid[g][v].pips[0].age);
         }
       } else {
+        drawHouse(g,v,grid[g][v].structure.color);
         //grid[g][v].element.style.backgroundColor = grid[g][v].structure.color;
       }
     }
@@ -196,6 +253,7 @@ function drawItems() {
 function spiralSearchForMate(me) {
   var xs = me.location.x;
   var ys = me.location.y;
+  // Check my cell
   if (grid[xs][ys].pips.length) {
     for (var idx = 0; idx < grid[xs][ys].pips.length; idx++) {
       var prospect = grid[xs][ys].pips[idx];
@@ -204,6 +262,7 @@ function spiralSearchForMate(me) {
       }
     }
   }
+  // Do the spiral search
   var maxDistance = matchMakingDistance;
   for (var d = 0; d < maxDistance; d++) {
     for (var x = xs - d; x < xs + d + 1; x++) {
@@ -254,412 +313,525 @@ function spiralSearchForMate(me) {
   return null;
 }
 
-function checkPoint(x, y, me) {
-  if (grid[x][y].pips.length) {
-    for (var idx = 0; idx < grid[x][y].pips.length; idx++) {
-      me.validatePartner
+function findMateInList(me) {
+  // Find by parsing the whole list
+  var distance = 10000;
+  for (var idx = 0; idx < pips.length; idx++) {
+    if (me.validatePartner(pips[idx])) {
+      var xd = pips[idx].location.x - me.location.x;
+      var yd = pips[idx].location.y - me.location.y;
+      var dist = Math.sqrt(xd * xd + yd * yd);
+      if (dist < distance) {
+        distance = dist;
+        return pips[idx];
+      }
+    }
+  };
+  return null;
+}
+
+function drawGrid() {
+  // var container = document.getElementById('game');
+  // var gridHtml = '<table>';
+  var r = 0;
+  var c = 0;
+  for (r; r <= rows; r+=1) {
+    // gridHtml += '<tr>';
+    for (c = 0; c <= columns; c+=1) {
+      if (grid[c] === undefined) {
+        grid[c] = [];
+      }
+      grid[c][r] = {
+        element: null,
+        structure: null,
+        pips: []
+      };
+      // gridHtml += '<td id="' + c + '.' + r + '"></td>';
+    }
+    // gridHtml += '</tr>';
+  }
+  // gridHtml += '</table>';
+  // container.innerHTML = gridHtml;
+
+  // grid.forEach(function(val, x){
+  //   val.forEach(function(obj, y) {
+  //     obj.element = document.getElementById(x + '.' + y);
+  //     obj.element.addEventListener("click", function() {
+  //       cellDetails(x, y);
+  //     });
+  //   });
+  // });
+}
+
+function setPipPosition(x, y, pip) {
+  grid[pip.location.x][pip.location.y].pips.forEach(function(p, idx) {
+    if (p.id === pip.id) {
+      grid[pip.location.x][pip.location.y].pips.splice(idx, 1);
+    }
+  });
+  if (x > columns) {
+    x = columns;
+  }
+  if (y > rows) {
+    y = rows;
+  }
+  grid[x][y].pips.push(pip);
+  pip.location = {x: x, y: y};
+}
+
+function setStartingPips() {
+  var pip1 = new Pip({tick: 0, gender: 0, age: 18});
+  var pip2 = new Pip({tick: 0, gender: 1, age: 18});
+  pips.push(pip1);
+  grid[pip1.location.x][pip1.location.y].pips.push(pip1);
+  pips.push(pip2);
+  grid[pip2.location.x][pip2.location.y].pips.push(pip2);
+}
+
+//===================================================================================================================
+//
+//                                     PIPS
+//
+//===================================================================================================================
+
+function Pip(conf) {
+  this.id = genGuid('PIP');
+  this.type = 'pip';
+  this.gender = conf.gender;
+  this.startingUnit = conf.startingUnit || 0;
+  this.unit = null;
+  this.partner = null;
+  this.dead = 0;
+  this.state = 'chillin';
+  this.color = (this.gender) ? '0,0,255' : '255,0,255';
+  this.location = {
+    x: getRandomNum(0, columns),
+    y: getRandomNum(0, rows)
+  };
+  this.income = 0;
+  this.balance = 0;
+  this.age = conf.age || 0;
+  this.birthTick = conf.tick;
+  this.pursuing = null;
+}
+
+Pip.prototype.update = function(tick) {
+  var self = this;
+  
+  this.birthdayCheck(tick);
+  this.deathCheck();
+
+  if (self.dead) {
+    return;
+  }
+
+  // this.findPartner(tick);
+  
+  // Play if youth
+  if (self.age < 18) {
+    this.play(tick);
+    return;
+  }
+
+  // Find a partner if needed
+  this.findPartner(tick);
+
+  // If my income is 0, I need a job
+  // If my balance > 1,000,000, randomly make a job or join one if any available
+  // If no jobs available, and I've a partner, make a job
+  // If no jobs available, and I've not a partner, get a partner
+  
+  // If it's time for children, go spawn one
+  if (self.unit && tick - self.unit.lastChildOnTick > 42) {
+    if (self.unit.members.length < self.unit.plannedChildren) {
+      this.pipGoHome(tick);
+      return;
+    }
+  }
+
+  return;
+}
+
+Pip.prototype.birthdayCheck = function(tick) {
+  // Age up!
+  if ((tick - this.birthTick) % tickPerYear === 0) {
+    this.age += 1;
+  }
+}
+
+Pip.prototype.deathCheck = function() {
+  var self = this;
+  // Is it time to die?
+  if (self.age > getRandomNum(pipMinAgeDeath, pipMaxAgeDeath)) {
+    // I die...
+    self.dead = 1;
+    deaths++;
+    self.state = 'dead';
+    if (self.gender) {
+      pipBoys--;
+    } else {
+      pipGirls--;
+    }
+
+    // Remove me from the population
+    for (var i=0; i<pips.length; i++) {
+      if (pips[i].id === self.id) {
+        pips.splice(i, 1);
+        break;
+      }
+    }
+
+    // Remove me from the grid
+    for (var i=0; i < grid[self.location.x][self.location.y].pips.length; i++) {
+      if (grid[self.location.x][self.location.y].pips[i].id === self.id) {
+        grid[self.location.x][self.location.y].pips.splice(i, 1);
+        break;
+      }
+    };
+    
+    // Remove our house if both parents are dead
+    if (self.unit !== null && self.unit.maleFounder.dead && self.unit.femaleFounder.dead) {
+      grid[self.unit.location.x][self.unit.location.y].structure = null;
+      for (var i=0; i < units.length; i++) {
+        if (units[i].id === self.unit.id) {
+          units.splice(i, 1);
+          break;
+        }
+      }
+    }
+    return;
+  }
+}
+
+Pip.prototype.pipGoHome = function(tick) {
+  var self = this;
+  var moveX = self.location.x;
+  var moveY = self.location.y;
+  if (self.location.x !== self.unit.location.x) {
+    if (self.location.x > self.unit.location.x) {
+      moveX--;
+    } else {
+      moveX++;
+    }
+  }
+  if (self.location.y !== self.unit.location.y) {
+    if (self.location.y > self.unit.location.y) {
+      moveY--;
+    } else {
+      moveY++;
+    }
+  }
+  if (moveX !== self.location.x || moveY !== self.location.y) {
+    setPipPosition(moveX, moveY, self);
+  } else {
+    if (self.location.x === self.partner.location.x && self.location.y === self.partner.location.y) {
+      // Make a pip...this should be another method
+      var pip = new Pip({tick: tick, gender: getRandomNum(0, 1), startingUnit: self.unit.id});
+      if (pip.gender) {
+        pipBoys++;
+        console.log("It's a boy!");
+      } else {
+        pipGirls++;
+        console.log("It's a girl!");
+      }
+      setPipPosition(self.location.x, self.location.y, pip);
+      self.unit.members.push(pip);
+      self.unit.lastChildOnTick = tick;
+      pips.push(pip);
+      births++;
     }
   }
 }
 
-(function() {
-  drawGrid();
-  setStartingPips();
-  drawItems();
-
-  var btn = document.getElementById("toggleBtn");
-  btn.addEventListener("click", function() {
-    var button = document.getElementById("toggleBtn");
-    if (running) {
-      pause();
-      button.innerHTML = "Run";
-    }
-    else {
-      run();
-      button.innerHTML = "Pause";
-    }
-  });
-
-  function drawGrid() {
-    // var container = document.getElementById('game');
-    // var gridHtml = '<table>';
-    var r = 0;
-    var c = 0;
-    for (r; r <= rows; r+=1) {
-      // gridHtml += '<tr>';
-      for (c = 0; c <= columns; c+=1) {
-        if (grid[c] === undefined) {
-          grid[c] = [];
-        }
-        grid[c][r] = {
-          element: null,
-          structure: null,
-          pips: []
-        };
-        // gridHtml += '<td id="' + c + '.' + r + '"></td>';
-      }
-      // gridHtml += '</tr>';
-    }
-    // gridHtml += '</table>';
-    // container.innerHTML = gridHtml;
-
-    // grid.forEach(function(val, x){
-    //   val.forEach(function(obj, y) {
-    //     obj.element = document.getElementById(x + '.' + y);
-    //     obj.element.addEventListener("click", function() {
-    //       cellDetails(x, y);
-    //     });
-    //   });
-    // });
+Pip.prototype.play = function() {
+  // return true; // Temp
+  // wander
+  var self = this;
+  self.state = 'playing';
+  if (self.age > 18) {
+    return true;
   }
-
-  function cellDetails(x, y) {
-    console.log(grid[x][y]);
+  var moveX = self.location.x;
+  var moveY = self.location.y;
+  var x = getRandomNum(0, 6);
+  var y = getRandomNum(0, 6);
+  switch (x) {
+    case 2:
+      moveX++;
+      break;
+    case 5:
+      moveX--;
+      break;
   }
-
-  function setPipPosition(x, y, pip) {
-    grid[pip.location.x][pip.location.y].pips.forEach(function(p, idx) {
-      if (p.id === pip.id) {
-        grid[pip.location.x][pip.location.y].pips.splice(idx, 1);
-      }
-    });
-    if (x > columns) {
-      x = columns;
-    }
-    if (y > rows) {
-      y = rows;
-    }
-    grid[x][y].pips.push(pip);
-    pip.location = {x: x, y: y};
+  switch (y) {
+    case 1:
+      moveY++;
+      break;
+    case 6:
+      moveY--;
+      break;
   }
-
-  function setStartingPips() {
-    var pip1 = new Pip({gender: 0});
-    var pip2 = new Pip({gender: 1});
-    pips.push(pip1);
-    grid[pip1.location.x][pip1.location.y].pips.push(pip1);
-    pips.push(pip2);
-    grid[pip2.location.x][pip2.location.y].pips.push(pip2);
+  if (moveX < 0) {
+    moveX = 0;
   }
-
-  function Pip(conf) {
-    this.id = genGuid('PIP');
-    this.type = 'pip';
-    this.gender = conf.gender;
-    this.startingUnit = conf.startingUnit || 0;
-    this.unit = null;
-    this.partner = null;
-    this.died = 0;
-    this.group = null;
-    this.color = (this.gender) ? '255,0,255' : '0,0,255';
-    this.location = {
-      x: getRandomNum(0, columns),
-      y: getRandomNum(0, rows)
-    };
-    this.income = 0;
-    this.balance = 0;
-    this.age = 0;
-    this.pursuing = null;
-
-    this.run = function(tick) {
-      var self = this;
-      if (tick % tickPerYear === 0) {
-        self.age += 1;
-      }
-
-      if (self.age > getRandomNum(83, 94)) {
-        for (var idx in pips) {
-          if (pips[idx].id === self.id) {
-            pips.splice(idx, 1);
-            break;
-          }
-        };
-        grid[self.location.x][self.location.y].pips.forEach(function(pip, idx) {
-          if (pip.id === self.id) {
-            grid[self.location.x][self.location.y].pips.splice(idx, 1);
-          }
-        });
-        self.died = 1;
-        if (self.unit !== null && self.unit.maleFounder.died && self.unit.femailFounder.died) {
-          grid[self.unit.location.x][self.unit.location.y].structure = null;
-          units.forEach(function(unit, idx) {
-            if (unit.id === self.unit.id) {
-              units.splice(idx, 1);
-            }
-          });
-        }
-        deaths++;
-        return;
-      }
-
-      // Play if youth
-      if (self.age < 18) {
-        self.play(tick);
-        return;
-      }
-
-      // Find a partner
-      if (self.partner === null) {
-        self.findPartner(tick);
-        return;
-      } else {
-        // If no children, go spawn one
-        if (self.unit.lastChildOnTick === 0) {
-          // Maybe...if pip isn't home, go home, otherwise do children
-          self.pipGoHome(tick);
-          return
-        }
-
-        if (tick - self.unit.lastChildOnTick > 4) {
-          if (self.unit.members.length < self.unit.plannedChildren) {
-            self.pipGoHome(tick);
-            return;
-          }
-        }
-
-        self.play(tick);
-        return true;
-      }
-      // If my income is 0, I need a job
-      // If my balance > 1,000,000, randomly make a job or join one if any available
-      // If no jobs available, and I've a partner, make a job
-      // If no jobs available, and I've not a partner, get a partner
-
-    }
-
-    this.pipGoHome = function(tick) {
-      var self = this;
-      var moveX = self.location.x;
-      var moveY = self.location.y;
-      if (self.location.x !== self.unit.location.x) {
-        if (self.location.x > self.unit.location.x) {
-          moveX--;
-        } else {
-          moveX++;
-        }
-      }
-      if (self.location.y !== self.unit.location.y) {
-        if (self.location.y > self.unit.location.y) {
-          moveY--;
-        } else {
-          moveY++;
-        }
-      }
-      if (moveX !== self.location.x || moveY !== self.location.y) {
-        setPipPosition(moveX, moveY, self);
-      } else {
-        if (self.location.x === self.partner.location.x && self.location.y === self.partner.location.y) {
-          // Make a pip...this should be another method
-          var pip = new Pip({gender: getRandomNum(0, 1), startingUnit: self.unit.id});
-          setPipPosition(self.location.x, self.location.y, pip);
-          self.unit.members.push(pip);
-          self.unit.lastChildOnTick = tick;
-          pips.push(pip);
-          births++;
-        }
-      }
-    }
-
-    this.play = function() {
-      // wander
-      return true;
-      var self = this;
-      if (self.age > 18) {
-        return true;
-      }
-      var moveX = self.location.x;
-      var moveY = self.location.y;
-      var x = getRandomNum(0, 6);
-      var y = getRandomNum(0, 6);
-      switch (x) {
-        case 2:
-          moveX++;
-          break;
-        case 5:
-          moveX--;
-          break;
-      }
-      switch (y) {
-        case 1:
-          moveY++;
-          break;
-        case 6:
-          moveY--;
-          break;
-      }
-      if (moveX < 0) {
-        moveX = 0;
-      }
-      if (moveY < 0) {
-        moveY = 0;
-      }
-      if (moveX > columns) {
-        moveX = columns;
-      }
-      if (moveY > rows) {
-        moveY = rows;
-      }
-      setPipPosition(moveX, moveY, self);
-    }
+  if (moveY < 0) {
+    moveY = 0;
+  }
+  if (moveX > columns) {
+    moveX = columns;
+  }
+  if (moveY > rows) {
+    moveY = rows;
+  }
+  setPipPosition(moveX, moveY, self);
+}
     
-    this.findPartner = function(tick) {
-      var self = this;
-      // If I'm not pursuing, or the one I'm pursuing all of a sudden is taken
-      if (self.pursuing === null || self.pursuing.partner !== null) {
-        // Spiral out from me to find a partner
-        if (pips.length > 2000) {
-          self.pursuing = spiralSearchForMate(self);
-        } else {
-          // Find the one closest to me by parsing the whole list
-          var distance = 10000;
-          for (var idx in pips) {
-            if (self.validatePartner(pips[idx])) {
-              var xd = pips[idx].location.x - self.location.x;
-              var yd = pips[idx].location.y - self.location.y;
-              var dist = Math.sqrt(xd * xd + yd * yd);
-              if (dist < distance) {
-                distance = dist;
-                self.pursuing = pips[idx];
-              }
-            }
-          };
-        }
-      }
-      if (self.pursuing === null) {
+Pip.prototype.findPartner = function(tick) {
+  var self = this;
+  if (self.partner !== null) {
+    return
+  }
+  self.state = 'single & looking';
+  // If I'm not pursuing, or the one I'm pursuing all of a sudden is taken
+  if (self.pursuing === null || self.pursuing.partner !== null) {
+    // Spiral out from me to find a partner
+    if (pips.length > 2500) {
+      self.pursuing = spiralSearchForMate(self);
+    } else {
+      self.pursuing = findMateInList(self);
+    }
+  }
+  if (self.pursuing === null) {
+    self.state = 'single & no prospects';
+    // I'm not pursuing anyone
+    return;
+  }
+  self.state = 'single & pursuing';
+
+  // Move towards that pip
+  var moveX = (function() { return self.location.x; })();
+  var moveY = (function() { return self.location.y; })();
+  if (self.location.x !== self.pursuing.location.x) {
+    if (self.location.x > self.pursuing.location.x) {
+      moveX--;
+    } else {
+      moveX++;
+    }
+  }
+  // Check within a range? Two cells away perhaps?
+  if (self.location.y !== self.pursuing.location.y) {
+    if (self.location.y > self.pursuing.location.y) {
+      moveY--;
+    } else {
+      moveY++;
+    }
+  }
+  if (moveX !== self.location.x || moveY !== self.location.y) {
+    setPipPosition(moveX, moveY, self);
+  } else {
+    if ( ! self.gender) {
+      self.proposeUnion(tick);
+    }
+  }
+}
+
+Pip.prototype.validatePartner = function(prospect) {
+  var self = this;
+  return (
+    prospect.id !== self.id && // Not me
+    prospect.gender !== self.gender && // Opposite Gender
+    prospect.partner === null && // Isn't already taken
+    prospect.age > 18 && // Old enough
+    prospect.age < 65 && // ...but not too old
+    (prospect.startingUnit !== self.startingUnit || pips.length < 100)
+  ); // Not in my family unless small population 
+}
+
+Pip.prototype.proposeUnion = function(tick) {
+  var self = this;
+  var unit = new Unit(tick, self, self.pursuing, this.getPlannedChildren());
+  self.color = '255,255,255';
+  self.pursuing.color = '255,255,255';
+  console.log(unit)
+  // What if...unit's location uses the spiral method from the males original unit to find one at least two spaces away?
+  findLocation(unit, self.location); // This should be a method on the Grid Object
+  self.partner = self.pursuing;
+  self.partner.partner = self;
+  self.unit = unit;
+  self.partner.unit = unit;
+  self.pursuing = null;
+  units.push(unit);
+}
+
+Pip.prototype.getPlannedChildren = function() {
+  var plan = 1;
+  if (pips.length <= pipLowPop) {
+    plan = getRandomNum(5, getRandomNum(7, 10));
+  } else if (pips.length > pipLowPop && pips.length <= pipMidPop) {
+    plan = getRandomNum(3, getRandomNum(4, 6));
+  } else if (pips.length > pipMidPop && pips.length <= pipHighPop) {
+    plan = getRandomNum(1, getRandomNum(2, 3));
+  }
+  return plan;
+}
+
+function findLocation(obj, coords) {
+  var xs = coords.x;
+  var ys = coords.y;
+  var unitFindDistance = 30;
+  // Check my cell
+  // if (grid[xs][ys].pips.length) {
+  //   for (var idx = 0; idx < grid[xs][ys].pips.length; idx++) {
+  //     var prospect = grid[xs][ys].pips[idx];
+  //     if (me.validatePartner(prospect)) {
+  //       return prospect;
+  //     }
+  //   }
+  // }
+  var xFarness = Math.floor(canvasWidth * 0.25);
+  var yFarness = Math.floor(canvasHeight * 0.25);
+  var x = getRandomNum(xs-xFarness, xs+xFarness);
+  var y = getRandomNum(ys-yFarness, ys+yFarness);
+  if (x < 0) x = 0;
+  if (x > canvasWidth) x = canvasWidth;
+  if (y < 0) y = 0;
+  if (y > canvasHeight) y = canvasHeight;
+  console.log(x,y);
+  if (grid[x][y].structure == null) {
+    grid[x][y].structure = obj;
+    obj.location = {
+      x: x,
+      y: y
+    };
+    return;
+  }
+
+  // Do the spiral search
+  var maxDistance = unitFindDistance;
+  for (var d = 20; d < maxDistance; d++) {
+    for (var x = xs - d; x < xs + d + 1; x++) {
+      // Point to check: (x, ys - d) and (x, ys + d)
+      var minusY = (ys - d < 0) ? 0 : ys - d;
+      var realX = (x < 0) ? 0 : (x > columns) ? columns : x;
+
+      if (grid[realX][minusY].structure == null) {
+        grid[realX][minusY].structure = obj;
+        obj.location = {
+          x: realX,
+          y: minusY
+        };
         return;
       }
-      var moveX = (function() { return self.location.x; })();
-      var moveY = (function() { return self.location.y; })();
-      if (self.location.x !== self.pursuing.location.x) {
-        if (self.location.x > self.pursuing.location.x) {
-          moveX--;
-        } else {
-          moveX++;
-        }
-      }
-      if (self.location.y !== self.pursuing.location.y) {
-        if (self.location.y > self.pursuing.location.y) {
-          moveY--;
-        } else {
-          moveY++;
-        }
-      }
-      if (moveX !== self.location.x || moveY !== self.location.y) {
-        setPipPosition(moveX, moveY, self);
-      } else {
-        if ( ! self.gender) {
-          self.proposeUnion(tick);
-        }
+
+      var plusY = (ys + d > rows) ? rows : ys + d;
+
+      if (grid[realX][plusY].structure == null) {
+        grid[realX][plusY].structure = obj;
+        obj.location = {
+          x: realX,
+          y: plusY
+        };
+        return;
       }
     }
+    for (var y = ys - d + 1; y < ys + d; y++) {
+      // Point to check = (xs - d, y) and (xs + d, y)
+      var minusX = (xs - d < 0) ? 0 : xs - d;
+      var realY = (y < 0) ? 0 : (y > rows) ? rows : y;
 
-    this.validatePartner = function(prospect) {
-      var self = this;
-      return (
-      prospect.id !== self.id && // Not me
-      prospect.gender !== self.gender && // Opposite Gender
-      prospect.partner === null && // Isn't already taken
-      prospect.age > 18 && // Old enough
-      (prospect.startingUnit !== self.startingUnit || pips.length < 100)); // Not in my family unless small population 
-    }
+      if (grid[minusX][realY].structure == null) {
+        grid[realX][realY].structure = obj;
+        obj.location = {
+          x: minusX,
+          y: realY
+        };
+        return;
+      }
 
-    this.proposeUnion = function(tick) {
-      var self = this;
-      var unit = new Unit(self, self.pursuing);
-      // What if...unit's location uses the spiral method from the males original unit to find one at least two spaces away?
-      findLocation(unit); // This should be a method on the Grid Object
-      self.partner = self.pursuing;
-      self.partner.partner = self;
-      self.unit = unit;
-      self.partner.unit = unit;
-      self.pursuing = null;
-      unit.createdTick = tick;
-      units.push(unit);
-    }
-  }
-
-  function findLocation(obj) {
-    var foundLocation = false;
-    var attempts = 0;
-    var x = 0;
-    var y = 0;
-    var totalCells = columns * rows;
-    while ( ! foundLocation) {
-      if (attempts < 10 && units.length < (totalCells / 2)) {
-        x = getRandomNum(0, columns);
-        y = getRandomNum(0, rows);
-        if (grid[x][y].structure == null) {
-          grid[x][y].structure = obj;
-          obj.location = {
-            x: x,
-            y: y
-          };
-          foundLocation = true;
-        }
-      } else {
-        y = 0;
-        x = 0;
-        for (var Xaxis in grid) {
-          for (var Yaxis in grid[Xaxis]) {
-            if (grid[Xaxis][Yaxis].structure == null) {
-              x = Xaxis;
-              y = Yaxis;
-            }
-          }
-        }
-        if (grid[x][y].structure == null) {
-          grid[x][y].structure = obj;
-          obj.location = {
-            x: x,
-            y: y
-          };
-          foundLocation = true;
-        } else {
-          foundLocation = true;
-          alert("No structure location possible?");
-        }
+      var plusX = (xs + d > columns) ? columns : xs + d;
+      if (grid[plusX][realY].structure == null) {
+        grid[realX][realY].structure = obj;
+        obj.location = {
+          x: plusX,
+          y: realY
+        };
+        return;
       }
     }
   }
 
-  function Unit(male, female) {
-    this.id = genGuid('UNT');
-    this.type = 'unit';
-    this.color = '#008800';
-    this.maleFounder = male;
-    this.femailFounder = female;
-    this.plannedChildren = getPlannedChildren();
-    this.lastChildOnTick = 0;
-    this.createdTick = 0;
-    this.createdLocation = (function() { return male.location;})();
-    this.location = {
-      x: null,
-      y: null
-    };
-    this.members = [];
-  }
 
-  function getPlannedChildren() {
-    var plan = 1;
-    if (pips.length <= 1500) {
-      plan = getRandomNum(5, getRandomNum(7, 10));
-    } else if (pips.length > 1500 && pips.length <= 3250) {
-      plan = getRandomNum(3, getRandomNum(4, 6));
-    } else if (pips.length > 3250 && pips.length <= 5000) {
-      plan = getRandomNum(1, getRandomNum(2, 3));
-    }
-    return plan;
-  }
 
-  function genGuid(type) {
-    objectId += 1;
-    return type + objectId;
-  }
+  // var foundLocation = false;
+  // var attempts = 0;
+  // var x = 0;
+  // var y = 0;
+  // var totalCells = columns * rows;
+  // while ( ! foundLocation) {
+  //   if (attempts < 10 && units.length < (totalCells / 2)) {
+  //     x = getRandomNum(0, columns);
+  //     y = getRandomNum(0, rows);
+  //     if (grid[x][y].structure == null) {
+  //       grid[x][y].structure = obj;
+  //       obj.location = {
+  //         x: x,
+  //         y: y
+  //       };
+  //       foundLocation = true;
+  //     }
+  //   } else {
+  //     y = 0;
+  //     x = 0;
+  //     for (var Xaxis in grid) {
+  //       for (var Yaxis in grid[Xaxis]) {
+  //         if (grid[Xaxis][Yaxis].structure == null) {
+  //           x = Xaxis;
+  //           y = Yaxis;
+  //         }
+  //       }
+  //     }
+  //     if (grid[x][y].structure == null) {
+  //       grid[x][y].structure = obj;
+  //       obj.location = {
+  //         x: x,
+  //         y: y
+  //       };
+  //       foundLocation = true;
+  //     } else {
+  //       foundLocation = true;
+  //       alert("No structure location possible?");
+  //     }
+  //   }
+  // }
+}
 
-  function getRandomNum(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-  }
-})();
+function Unit(tick, male, female, children) {
+  this.id = 'UNT' + ++unitId;
+  this.type = 'unit';
+  this.color = '139,69,19';
+  this.maleFounder = male;
+  this.femaleFounder = female;
+  this.plannedChildren = children;
+  this.lastChildOnTick = tick;
+  this.createdTick = tick;
+  this.createdLocation = structuredClone(male.location);
+  this.location = {
+    x: null,
+    y: null
+  };
+  this.members = [];
+}
+
+
+
+function genGuid(type) {
+  objectId += 1;
+  return type + objectId;
+}
+
+function getRandomNum(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
 
     </script>
   </body>
